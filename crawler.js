@@ -1,17 +1,22 @@
 const axios = require("axios")
 const cheerio = require("cheerio")
-const url = "https://www.vscinemas.com.tw/ShowTimes/"
 const fs = require("fs")
 
-const crawlVSWeb = async (url) => { 
-    const webContent = await axios.get(url)
-    const $ = cheerio.load(webContent.data)
+const header = {'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64)\ AppleWebKit/537.36(KHTML, like Gecko) Chrome/76.0.3809.132 Safari/537.36'}
 
-    const cinemasDetails = [];
-    const cinemasInfo = getCinemasInfo($, cinemasDetails)
-    
-    const movieTimeTable = await getMoiveTimeTable(cinemasInfo)
-    return movieTimeTable
+const crawlVSWeb = async (url) => { 
+    try {
+        const webContent = await axios.get(url, {headers: header})
+        const $ = cheerio.load(webContent.data)
+
+        const cinemasDetails = [];
+        const cinemasInfo = getCinemasInfo($, cinemasDetails)
+        
+        const movieTimeTable = await getMoiveTimeTable(cinemasInfo)
+        return movieTimeTable
+    } catch (err) {
+        console.error(err)
+    }
 }
 
 const getCinemasInfo = ($, cinemasDetails) => {
@@ -25,20 +30,27 @@ const getCinemasInfo = ($, cinemasDetails) => {
 
 const getMoiveTimeTable = async (cinemasDetails) => {
     const movieTimeTable = {};
-    await Promise.all(cinemasDetails.map(async (cinemaDetails) => {
-        const { cinemaCode, cinemaName } = cinemaDetails;
-        movieTimeTable[cinemaName] = {};
-        const timeTableUrl = "https://www.vscinemas.com.tw/ShowTimes/ShowTimes/GetShowTimes";
-        try {
-            const timeTable = await axios.post(timeTableUrl, { CinemaCode: cinemaCode });
-            const $ = cheerio.load(timeTable.data);
-            const movieContainers = $('.col-xs-12');
-            await formMovieTimeTable($, movieContainers, cinemaName, movieTimeTable);
-        } catch (error) {
-            console.error(`Error fetching data for cinema: ${cinemaName}`, error);
-        }
-    }));
-    return movieTimeTable;
+    try {
+        await Promise.all(cinemasDetails.map(async (cinemaDetails) => {
+            const { cinemaCode, cinemaName } = cinemaDetails;
+            movieTimeTable[cinemaName] = {};
+            const timeTableUrl = "https://www.vscinemas.com.tw/ShowTimes/ShowTimes/GetShowTimes";
+            try {
+                const timeTable = await axios.post(
+                    timeTableUrl, 
+                    { CinemaCode: cinemaCode },
+                    { headers: header});
+                const $ = cheerio.load(timeTable.data);
+                const movieContainers = $('.col-xs-12');
+                await formMovieTimeTable($, movieContainers, cinemaName, movieTimeTable);
+            } catch (error) {
+                console.error(`Error fetching data for cinema: ${cinemaName}`, error);
+            }
+        }));
+        return movieTimeTable;
+    } catch (err) {
+        console.error(err)
+    }
 };
 
 const formMovieTimeTable = async ($, movieContainers, cinemaName, movieTimeTable) => {
@@ -55,7 +67,6 @@ const formMovieTimeTable = async ($, movieContainers, cinemaName, movieTimeTable
             await Promise.all(showDates.map(async (index, dateElement) => {
                 const date = $(dateElement).text().trim();
                 const times = await getDataTimes($ ,$(showTimeContainers[index]))
-                console.log({times})
                 dateTimes.push({date, times})
             }));
             movieTimeTable[cinemaName][movieName] = dateTimes
@@ -84,4 +95,6 @@ const writeCrawlDataToJSON = async (url) => {
     writeToJSON(json)
 }
 
-writeCrawlDataToJSON(url)
+module.exports = {
+    writeCrawlDataToJSON
+}
