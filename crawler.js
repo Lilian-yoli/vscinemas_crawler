@@ -30,28 +30,29 @@ const getCinemasInfo = ($, cinemasDetails) => {
 
 const getMoiveTimeTable = async (cinemasDetails) => {
     const movieTimeTable = {};
-    try {
-        await Promise.all(cinemasDetails.map(async (cinemaDetails) => {
-            const { cinemaCode, cinemaName } = cinemaDetails;
-            movieTimeTable[cinemaName] = {};
-            const timeTableUrl = "https://www.vscinemas.com.tw/ShowTimes/ShowTimes/GetShowTimes";
-            try {
-                const timeTable = await axios.post(
-                    timeTableUrl, 
-                    { CinemaCode: cinemaCode },
-                    { headers: header});
-                const $ = cheerio.load(timeTable.data);
-                const movieContainers = $('.col-xs-12');
-                await formMovieTimeTable($, movieContainers, cinemaName, movieTimeTable);
-            } catch (error) {
-                console.error(`Error fetching data for cinema: ${cinemaName}`, error);
-            }
-        }));
-        return movieTimeTable;
-    } catch (err) {
-        console.error(err)
-    }
+    await Promise.all(cinemasDetails.map(async (cinemaDetails) => {
+        await delay(2000)
+        const { cinemaCode, cinemaName } = cinemaDetails;
+        movieTimeTable[cinemaName] = {};
+        const timeTableUrl = "https://www.vscinemas.com.tw/ShowTimes/ShowTimes/GetShowTimes";
+        try {
+            const timeTable = await axios.post(
+                timeTableUrl, 
+                { CinemaCode: cinemaCode },
+                { headers: header});
+            const $ = cheerio.load(timeTable.data);
+            const movieContainers = $('.col-xs-12');
+            await formMovieTimeTable($, movieContainers, cinemaName, movieTimeTable);
+        } catch (error) {
+            console.error(`Error fetching data for cinema: ${cinemaName}`, error);
+        }
+    }));
+    return movieTimeTable;
 };
+
+function delay(time) {
+    return new Promise(resolve => setTimeout(resolve, time));
+  }
 
 const formMovieTimeTable = async ($, movieContainers, cinemaName, movieTimeTable) => {
     await Promise.all(movieContainers.map(async (_, container) => {
@@ -83,16 +84,16 @@ const getDataTimes = async ($, sessionTimeInfo) => {
     return dateTimes;
 };
 
-const writeToJSON = (objData) => {
+const writeToJSON = (objData, fileName) => {
     const json = JSON.stringify(objData)
-    fs.writeFileSync('VSShowTimes.json', json, 'utf-8', (err) => {
+    fs.writeFileSync(fileName, json, 'utf-8', (err) => {
         if(err) console.error(err)
     })
 }
 
 const writeCrawlDataToJSON = async (url) => {
     const json = await crawlVSWeb(url)
-    writeToJSON(json)
+    writeToJSON(json, "VSShowtime.json")
 }
 
 module.exports = {
